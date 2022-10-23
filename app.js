@@ -17,6 +17,7 @@ var tagsRouter = require('./routes/tags');
 var userRouter = require('./routes/user');
 
 // Connecting to database
+console.log(process.env.MONGO_DB)
 mongoose.connect(
   process.env.MONGO_DB,
   { useNewUrlParser: true, useUnifiedTopology: true },
