@@ -5,6 +5,7 @@ const User = require("../models/users");
 const Article = require("../models/articles");
 const { token } = require("morgan");
 const formatData = require("../helpers/formatdata");
+
 let { userProfile, userJSON, articleformat } = formatData;
 
 // get any user profile by his username
