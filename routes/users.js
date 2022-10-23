@@ -1,54 +1,53 @@
-var express = require('express');
+var express = require("express");
 var router = express.Router();
-var User = require('../models/User');
-router.get('/', (req, res, next) => {
-  res.render('index');
-});
+const bcrypt = require("bcrypt");
+const User = require("../models/users");
+const formatData = require("../helpers/formatdata");
+let { userProfile, userJSON, articleformat } = formatData;
 
-// SignUp
-router.post('/signup', async (req, res, next) => {
-  req.body.following = false;
+
+// create  a new user Register (no authentication is required)
+router.post("/", async (req, res, next) => {
   try {
-    var user = await User.create(req.body.user);
-    res
-      .status(200)
-      .json({ name: user.name, message: 'registered successfully' });
+    let user = await User.create(req.body);
+    let token = user.signToken();
+    res.status(201).json({ user: userJSON(user, token) });
   } catch (error) {
-    if (error) {
-      if (error.code === 11000) {
-        return res
-          .status(400)
-          .json({ error: 'This Email is already registered...' });
-      }
-      if (error.name === 'ValidationError') {
-        return res
-          .status(400)
-          .json({ error: 'Enter a valid and strong Password...' });
-      }
-    }
+    next(error);
   }
 });
 
-// LogIn
-router.post('/login', async (req, res, next) => {
-  const { email, password } = req.body.user;
-  if (!email || !password) {
-    return res.status(400).json({ error: ' Email or Password is missing.' });
-  }
+
+// user login   with email and password
+router.post("/login", async (req, res) => {
   try {
-    var user = await User.findOne({ email });
+    let { email, password } = req.body;
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ error: "both password and email is required" });
+    }
+    let user = await User.findOne({ email: email });
+
+    // if the user is not exits in the database
     if (!user) {
-      return res.status(400).json({ error: ' Email not registered.' });
+      return res.status(400).json({ error: "user is not registered" });
     }
-    var result = await user.verifyPassword(password);
-    if (!result) {
-      return res.status(400).json({ error: 'Password is wrong.' });
+
+    // if the user is exits then compare  the password
+    let isMatched = await bcrypt.compare(password, user.password);
+
+    // if the password is not matched
+    if (!isMatched) {
+      return res.status(400).json({ error: "user password is not matched" });
     }
-    var token = await user.signToken();
-    res.status(200).json({ user: user.userJSON(token) });
+    
+    // if user password is mathced then generate  the user  jwt token
+    // and send it to the user
+    let token = user.signToken();
+    res.status(202).json({ user: userJSON(user, token) });
   } catch (error) {
-    return error;
+    next(error);
   }
 });
-
 module.exports = router;

@@ -1,97 +1,92 @@
-var express = require('express');
-var router = express.Router();
-var User = require('../models/User');
-var auth = require('../middlewares/auth');
+const express = require("express");
+const router = express.Router();
+const auth = require("../middlewares/auth");
+const User = require("../models/users");
+const Article = require("../models/articles");
+const { token } = require("morgan");
+const formatData = require("../helpers/formatdata");
+let { userProfile, userJSON, articleformat } = formatData;
 
-//Get Profile (Optional Authentication)
-router.get('/:username', auth.authorizeOptional, async (req, res, next) => {
-  var id = req.user.userId;
-  var username = req.params.username;
-  try {
-    var user = await User.findOne({ username: username });
-    if (user) {
-      return res.status(201).json({ profile: user.displayUser(id) });
-    } else {
-      return res.status(400).json({ error: 'No such user exists' });
+// get any user profile by his username
+router.get(
+  "/:username",
+  auth.optionalAuthorization,
+  async function (req, res, next) {
+    try {
+      let id = req.user.id;
+      let username = req.params.username;
+      let user = await User.findOne({ username: username });
+      res.status(200).json({ user: userProfile(user, id) });
+    } catch (error) {
+      next(error);
     }
+  }
+);
+
+// only verified user have access to these routes
+router.use(auth.isVerified);
+
+
+//follow  the user
+router.get("/:username/follow", async (req, res, next) => {
+  try {
+    let id = req.user.id;
+    let username = req.params.username;
+    let user = await User.findOne({ username: username });
+    let updateProfile = await User.findByIdAndUpdate(
+      id,
+      {
+        $push: { followingList: user._id },
+      },
+      {
+        new: true,
+      }
+    ).select({ password: 0 });
+    //update the targated user data
+    let targatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $push: { followersList: updateProfile._id },
+      },
+      { new: true }
+    ).select({ password: 0 });
+    res.status(202).json({
+      user: userProfile(updateProfile, id),
+      targatedUser: userProfile(targatedUser, id),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// Protecting The Routes
-router.use(auth.verifyToken);
 
-//Follow User (Authenticated)
-router.post('/:username/follow', async (req, res, next) => {
-  var id = req.user.userId;
-  var username = req.params.username;
+//unfollow the user
+router.delete("/:username/follow", async (req, res, next) => {
   try {
-    var user1 = await User.findOne({ username });
-    if (!user1) {
-      return res.status(400).json({ error: 'No such user exists' });
-    }
-
-    var user2 = await User.findById(id);
-    if (
-      user1.username !== user2.username &&
-      !user2.followingList.includes(user1.id)
-    ) {
-      user2 = await User.findByIdAndUpdate(
-        user2.id,
-        {
-          $push: { followingList: user1.id },
-        },
-        { new: true }
-      );
-      user1 = await User.findByIdAndUpdate(
-        user1.id,
-        {
-          $push: { followersList: user2.id },
-        },
-        { new: true }
-      );
-      return res.status(201).json({ user: user1.displayUser(user2.id) });
-    } else {
-      return res
-        .status(400)
-        .json({ errors: { body: 'You are already following the person' } });
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-//Unfollow User (Authenticated)
-router.delete('/:username/follow', async (req, res, next) => {
-  var username = req.params.username;
-  try {
-    var user1 = await User.findOne({ username });
-    if (!user1) {
-      return res.status(400).json({ errors: 'No such user exists' });
-    }
-    var user2 = await User.findById(req.user.userId);
-    if (user2.followingList.includes(user1.id)) {
-      user2 = await User.findByIdAndUpdate(
-        user2.id,
-        {
-          $pull: { followingList: user1.id },
-        },
-        { new: true }
-      );
-      user1 = await User.findByIdAndUpdate(
-        user1.id,
-        {
-          $pull: { followersList: user2.id },
-        },
-        { new: true }
-      );
-      return res.status(200).json({ user: user1.displayUser(user2.id) });
-    } else {
-      return res
-        .status(400)
-        .json({ errors: { body: 'You are not following this person' } });
-    }
+    let id = req.user.id;
+    let username = req.params.username;
+    let user = await User.findOne({ username: username });
+    let updateProfile = await User.findByIdAndUpdate(
+      id,
+      {
+        $pull: { followingList: user._id },
+      },
+      {
+        new: true,
+      }
+    );
+    //update targated user data
+    let targatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $pull: { followersList: updateProfile._id },
+      },
+      { new: true }
+    );
+    res.status(202).json({
+      user: userProfile(updateProfile, id),
+      targatedUser: userProfile(targatedUser, id),
+    });
   } catch (error) {
     next(error);
   }

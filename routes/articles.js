@@ -1,346 +1,322 @@
-var express = require('express');
-var router = express.Router();
-var Article = require('../models/Article');
-var User = require('../models/User');
-var Comment = require('../models/Comment');
-var slugger = require('slugger');
-var auth = require('../middlewares/auth');
+const express = require("express");
+let router = express.Router();
+let Article = require("../models/articles");
+let auth = require("../middlewares/auth");
+const User = require("../models/users");
+let Comment = require("../models/comment");
+const { findOne } = require("../models/users");
+const { route } = require(".");
+const { compareSync } = require("bcrypt");
+const { all } = require("express/lib/application");
+const formatData = require("../helpers/formatdata");
 
-// Feed Articles  (Authenticated)
-router.get('/feed', auth.verifyToken, async (req, res, next) => {
-  var limit = 20;
-  var skip = 0;
+let {
+  userProfile,
+  userJSON,
+  articleformat,
+  commentformat,
+  formatArticles,
+  formatcomments,
+  randomNumber,
+} = formatData;
+
+router.use(auth.optionalAuthorization);
+
+//user feed get articles of users whom the user is following
+router.get("/feed",auth.isVerified, async (req, res, next) => {
+  let limit = 10;
+  let skip = 0;
+
   if (req.query.limit) {
+    limit = req.params.limit;
+  }
+  if (req.query.offset) {
+    skip = req.query.offset;
+  }
+
+  try {
+    // Get all the followed user id
+    let allusers = await User.findById(req.user.id).distinct("followingList");
+    let articles = await Article.find({ author: { $in: allusers } })
+      .populate("author")
+      .limit(limit)
+      .skip(skip);
+    res.status(202).json({ articles: formatArticles(articles, req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Global feed get all articles (optional authentication )
+router.get("/", async (req, res, next) => {
+  let limit = 10;
+  let skip = 0;
+  let { tag, author, favourite } = req.query;
+
+  // in query form  we will pass filter to database a query
+  const filter = {};
+
+  if (tag) {
+    filter.taglist = { $in: req.query.tag };
+  }
+  if (author) {
+    let user = await User.findOne({ username: req.query.author });
+    filter.author = user._id;
+  }
+  if (limit) {
     limit = req.query.limit;
   }
-  if (req.query.skip) {
+  if (skip) {
     skip = req.query.skip;
   }
+
   try {
-    let result = await User.findById(req.user.userId).distinct('followingList');
-    let articles = await Article.find({ author: { $in: result } })
-      .populate('author')
-      .limit(Number(limit))
-      .skip(Number(skip))
-      .sort({ createdAt: -1 });
-    res.status(200).json({
-      articles: articles.map((art) => {
-        return art.resultArticle(req.user.userId);
-      }),
-      arcticlesCount: articles.length,
-    });
+    let articles = await Article.find(filter)
+      .populate("author")
+      .limit(limit)
+      .skip(skip)
+      .sort({ _id: -1 });
+    res.status(202).json({ articles: formatArticles(articles, req.user.id) });
   } catch (error) {
     next(error);
   }
 });
 
-//List Articles  (Optional Authentication)
-router.get('/', auth.authorizeOptional, async (req, res, next) => {
-  let id = req.user ? req.user.userId : false;
-  var limit = 20,
-      skip = 0;
-  var tags = await Article.find({}).distinct('tagList');
-  var authors = await User.find({}).distinct('_id');
-
-  var tagList,
-    author = null;
-  if (req.query.tag) {
-    tagList = req.query.tag;
-  }
-  if (req.query.limit) {
-    limit = req.query.limit;
-  }
-  if (req.query.skip) {
-    skip = req.query.skip;
-  }
-  if (req.query.author) {
-    console.log('1');
-    var authorName = req.query.author;
-    var user = await User.findOne({ username: authorName });
-    if (!user) {
-      return res
-        .status(400)
-        .json({ errors: { body: ['There is no results for this name'] } });
-    }
-    author = user.id;
-  }
-
+//get a single article detail(optional authentication)
+router.get("/:slug", async (req, res, next) => {
   try {
-    if (req.query.favorited) {
-      console.log('2');
-      var favorited = req.query.favorited;
-      var user = await User.findOne({ username: favorited });
-      if (!user) {
-        return res
-          .status(400)
-          .json({ errors: { body: ['There is no results for this name'] } });
-      }
-      var articles = await Article.find({
-        tagList: !tagList ? { $in: tags } : tagList,
-        favoriteList: user.id,
-        author: !author ? { $in: authors } : author,
-      })
-        .populate('author')
-        .limit(Number(limit))
-        .skip(Number(skip))
-        .sort({ createdAt: -1 });
-      res.status(200).json({
-        articles: articles.map((arr) => {
-          return arr.resultArticle(id);
-        }),
-        arcticlesCount: articles.length,
-      });
-    } else if (!req.query.favorited) {
-      console.log('yes');
-      var articles = await Article.find({
-        tagList: !tagList ? { $in: tags } : tagList,
-        author: !author ? { $in: authors } : author,
-      })
-        .populate('author')
-        .limit(Number(limit))
-        .skip(Number(skip))
-        .sort({ createdAt: -1 });
-      res.status(200).json({
-        articles: articles.map((arr) => {
-          return arr.resultArticle(id);
-        }),
-        arcticlesCount: articles.length,
-      });
-    } else {
-      return res
-        .status(400)
-        .json({ errors: { body: ['No results for the search'] } });
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-
-//Get Article  (Not Authenticated)
-router.get('/:slug', async (req, res, next) => {
-  let slug = req.params.slug;
-  try {
-    let article = await Article.findOne({ slug }).populate('author');
-    res.status(200).json({ article: article.resultArticle() });
-  } catch (error) {
-    next(error);
-  }
-});
-
-//Create Article  (Authenticated)
-router.post('/', auth.verifyToken, async (req, res, next) => {
-  req.body.article.author = req.user.userId;
-  try {
-    let article = await Article.create(req.body.article);
-    let article2 = await Article.findById(article.id).populate('author');
-    res.status(200).json({ article: article2.resultArticle(req.user.userId) });
-  } catch (error) {
-    next(error);
-  }
-});
-
-//Update Article  (Authenticated)
-router.put('/:slug', auth.verifyToken, async (req, res, next) => {
-  let slug = req.params.slug;
-  if (req.body.article.title) {
-    req.body.article.slug = slugger(req.body.article.title, {
-      replacement: '-',
-    });
-  }
-  try {
-    let article = await Article.findOne({ slug });
-    if (!article) {
-      return res
-        .status(400)
-        .json({ errors: { body: 'Theres is no such article' } });
-    }
-    if (req.user.userId == article.author) {
-      article = await Article.findOneAndUpdate({ slug }, req.body.article, {
-        new: true,
-      }).populate('author');
-      return res
-        .status(200)
-        .json({ article: article.resultArticle(req.user.userId) });
-    } else {
-      return res
-        .status(403)
-        .json({ error: { body: 'Not Authorized to perform this action' } });
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-//Delete Article  (Authenticated)
-router.delete('/:slug', auth.verifyToken, async (req, res, next) => {
-  let slug = req.params.slug;
-  try {
-    let article = await Article.findOne({ slug });
-    if (!article) {
-      return res
-        .status(400)
-        .json({ errors: { body: 'Theres is no such article' } });
-    }
-    if (req.user.userId == article.author) {
-      article = await Article.findOneAndDelete({ slug });
-      let comments = await Comment.deleteMany({ articleId: article.id });
-      return res.status(400).json({ msg: 'Article is successfully deleted' });
-    } else {
-      return res
-        .status(403)
-        .json({ error: { body: 'Not Authorized to perform this action' } });
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-//Add Comments To An Article  (Authenticated)
-router.post('/:slug/comments', auth.verifyToken, async (req, res, next) => {
-  let slug = req.params.slug;
-  try {
-    let article = await Article.findOne({ slug });
-    if (!article) {
-      return res.status(400).json({
-        errors: { body: 'Theres is no such article for this search' },
-      });
-    }
-    req.body.comment.articleId = article.id;
-    req.body.comment.author = req.user.userId;
-    let comment = await Comment.create(req.body.comment);
-    article = await Article.findOneAndUpdate(
-      { slug },
-      { $push: { comments: comment.id } }
+    let id = req.user.id;
+    let article = await Article.findOne({ slug: req.params.slug }).populate(
+      "author"
     );
-    comment = await Comment.findById(comment.id).populate('author');
-    return res
-      .status(200)
-      .json({ comment: comment.displayComment(req.user.userId) });
+    res.status(201).json({ article: articleformat(article, id) });
   } catch (error) {
     next(error);
   }
 });
 
-//Get Comments From An Article   (Optional Authentication)
-router.get(
-  '/:slug/comments',
-  auth.authorizeOptional,
-  async (req, res, next) => {
-    let slug = req.params.slug;
-    let id = req.user ? req.user.userId : false;
-    try {
-      let article = await Article.findOne({ slug });
-      if (!article) {
-        return res
-          .status(400)
-          .json({ errors: { body: 'There is no such article' } });
-      }
-      let comments = await Comment.find({ articleId: article.id }).populate(
-        'author'
-      );
-      res.status(200).json({
-        comments: comments.map((comment) => {
-          return comment.displayComment(id);
-        }),
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+// only logged in users have access to these routes
+router.use(auth.isVerified);
 
-//Delete Comments  (Authenticated)
-router.delete(
-  '/:slug/comments/:id',
-  auth.verifyToken,
-  async (req, res, next) => {
-    let slug = req.params.slug;
+//create a article
+router.post("/", async (req, res, next) => {
+  if(req.body.taglist){
+    req.body.taglist = req.body.taglist.trim().split(",");
+  }
+  try {
+    let id = req.user.id;
+    req.body.author = req.user.id;
+    let article = await Article.create(req.body);
+
+    // add this created article in the user document as well
+    
+    let updateUser = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $push: { myarticles: article._id },
+      },
+      { new: true }
+    );
+    article = await Article.findById(article._id).populate("author");
+    res.status(201).json({ article: articleformat(article, id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+//Only user who creates article can update his article
+router.put("/:slug", async (req, res, next) => {
+  let id = req.user.id;
+  if (req.body.taglist) {
+    req.body.taglist = req.body.taglist.split(",");
+  }
+
+  if (req.body.title) {
+    req.body.slug = req.body.title + "_" + randomNumber();
+    req.body.slug = req.body.slug.split(",").join("-");
+  }
+
+  try {
+    let user = req.user.id;
+    let article = await Article.findOne({ slug: req.params.slug });
+    if (user == article.author) {
+      let updateArticle = await Article.findByIdAndUpdate(
+        article._id,
+        req.body,
+        {
+          new: true,
+        }
+      ).populate("author");
+      return res
+        .status(202)
+        .json({ article: articleformat(updateArticle, id) });
+    }
+    return res.status(401).json({ error: "sorry you are not authorized" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete Article
+router.delete("/:slug", async (req, res, next) => {
+  try {
+    let user = req.user.id;
+    let article = await Article.findOne({ slug: req.params.slug });
+    // only the user who created this article can delete this article
+    if (user == article.author) {
+      let deletedArticle = await Article.findByIdAndDelete(article._id);
+      return res.status(202).json({ message: "article delete sucessfully" });
+    }
+    res
+      .status(403)
+      .json({ error: "sorry you are not authorized to perform this action" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// get a single comment
+router.get("/:id/comment", async (req, res, next) => {
+  try {
+    let comment = await Comment.findById(req.params.id).populate("author");
+    console.log(comment);
+    res.status(202).json({ comment: commentformat(comment, req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// get a multiple comments of a single comments
+router.get("/:slug/comments", async (req, res, next) => {
+  try {
+    let article = await Article.findOne({ slug: req.params.slug });
+    let comments = await Comment.find({ articleId: article._id }).populate(
+      "author"
+    );
+    console.log("these are all  comments of this article", comments);
+    res.status(202).json({ comments: formatcomments(comments, req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// add a comment in the  article
+router.post("/:slug/comment", async (req, res, next) => {
+  try {
+    let article = await Article.findOne({ slug: req.params.slug });
+    req.body.author = req.user.id;
+    req.body.articleId = article._id;
+    // now update  the commnets in the article document
+    let comment = await Comment.create(req.body);
+    let updateArticle = await Article.findByIdAndUpdate(
+      article._id,
+      {
+        $push: { comments: comment._id },
+      },
+      { new: true }
+    );
+    comment = await Comment.findById(comment._id).populate("author");
+    console.log(comment);
+    res.status(201).json({ comment: commentformat(comment, req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+//update  comment  only update if the cretor of the comment wants to edit it
+router.put("/:id/comment", async (req, res, next) => {
+  try {
     let id = req.params.id;
-    try {
-      let article = await Article.findOne({ slug });
-      if (!article) {
-        return res
-          .status(400)
-          .json({ errors: { body: 'Theres is no such article' } });
-      }
-      let comment = await Comment.findById(id);
-      if (req.user.userId == comment.author) {
-        comment = await Comment.findByIdAndDelete(id);
-        article = await Article.findOneAndUpdate(
-          { slug },
-          { $pull: { comments: id } }
-        );
-        return res.status(200).json({ msg: 'Comment is successfully deleted' });
-      } else {
-        return res
-          .status(403)
-          .json({ error: { body: 'Not Authorized to perform this action' } });
-      }
-    } catch (error) {
-      next(error);
+    let comment = await Comment.findById(id);
+    if (comment.author == req.user.id) {
+      let updatedComment = await Comment.findByIdAndUpdate(id, req.body, {
+        new: true,
+      }).populate("author");
+      res
+        .status(202)
+        .json({ comment: commentformat(updatedComment, req.user.id) });
     }
-  }
-);
-
-//Favorite Article  (Authenticated)
-router.post('/:slug/favorite', auth.verifyToken, async (req, res, next) => {
-  let slug = req.params.slug;
-  try {
-    let article = await Article.findOne({ slug });
-    if (!article) {
-      return res
-        .status(400)
-        .json({ errors: { body: 'Theres is no such article' } });
-    }
-    let user = await User.findById(req.user.userId);
-    if (!article.favoriteList.includes(user.id)) {
-      article = await Article.findOneAndUpdate(
-        { slug },
-        { $inc: { favoritesCount: 1 }, $push: { favoriteList: user.id } }
-      ).populate('author');
-      return res.status(200).json({ article: article.resultArticle(user.id) });
-    } else {
-      return res.status(200).json({
-        errors: { body: 'Article is already added to your favorite list' },
-      });
-    }
+    res.status(400).json({ error: "you are not authorized user " });
   } catch (error) {
     next(error);
   }
 });
 
-//Unfavorite Article  (Authenticated)
-router.delete('/:slug/favorite', auth.verifyToken, async (req, res, next) => {
-  let slug = req.params.slug;
+//delete the comment
+router.delete("/:id/comment", async (req, res, next) => {
   try {
-    let article = await Article.findOne({ slug });
-    if (!article) {
-      return res
-        .status(400)
-        .json({ errors: { body: 'Theres is no such article' } });
+    let id = req.params.id;
+    let comment = await Comment.findById(id);
+    if (comment.author == req.user.id) {
+      let deleteComment = await Comment.findByIdAndDelete(id);
+      let updateArticle = await Article.findByIdAndUpdate(
+        deleteComment.articleId,
+        {
+          $pull: { comments: comment._id },
+        },
+        { new: true }
+      );
+      res.status(202).json({ message: "Comment is deleted sucessfully" });
     }
-    let user = await User.findById(req.user.userId);
-    if (article.favoriteList.includes(user.id)) {
-      article = await Article.findOneAndUpdate(
-        { slug },
-        { $inc: { favoritesCount: -1 }, $pull: { favoriteList: user.id } }
-      ).populate('author');
-
-      return res.status(200).json({ article: article.resultArticle(user.id) });
-    } else {
-      return res.status(200).json({
-        errors: { body: 'Article is removed from the favorite list' },
-      });
-    }
+    res.status(500).json({ error: "you are not authorized user " });
   } catch (error) {
     next(error);
   }
 });
-router.get('/tags', async (req, res, next) => {
+
+// add a favourite article  to the user data and update this in article also
+// if  the user had not favourited this article then only favouite this article
+router.get("/:slug/favorite", async (req, res, next) => {
   try {
-    let tags = await Article.find({}).distinct('tagList');
-    res.status(200).json({ tags });
+    let article = await Article.findOne({ slug: req.params.slug });
+    if (!article.favouriteList.includes(req.user.id)) {
+      let user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $push: { favouriteArticle: article._id } },
+        { new: true }
+      );
+
+      let updateArticle = await Article.findByIdAndUpdate(
+        article._id,
+        { $push: { favouriteList: user._id }, $inc: { favouritedCount: 1 } },
+        { new: true }
+      );
+      res
+        .status(202)
+        .json({ article: articleformat(updateArticle, req.user.id) });
+    }
+    return res
+      .status(403)
+      .json({ error: "you have already favourited this article" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+//unfavourite an article remove reference form user as well as from article
+// but only when if user has favourited this article
+router.get("/:slug/unfavorite", async (req, res, next) => {
+  try {
+    let article = await Article.findOne({ slug: req.params.slug });
+    if (article.favouriteList.includes(req.user.id)) {
+      let user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $pull: { favouriteArticle: article._id } },
+        { new: true }
+      );
+
+      let updateArticle = await Article.findByIdAndUpdate(
+        article._id,
+        { $pull: { favouriteList: user._id }, $inc: { favouritedCount: -1 } },
+        { new: true }
+      );
+      res
+        .status(202)
+        .json({ article: articleformat(updateArticle, req.user.id) });
+    }
+    res
+      .status(403)
+      .json({ error: "you have not favourited this article yet.." });
   } catch (error) {
     next(error);
   }

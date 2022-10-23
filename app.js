@@ -1,48 +1,45 @@
-// Requiring  packages
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var mongoose = require('mongoose');
+//Requiring all the packages
+const express = require("express");
+var createError = require("http-errors");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const logger = require("morgan");
+const mongoose = require("mongoose");
+require("dotenv").config();
 
-require('dotenv').config();
-
-// Requiring the routes
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var articlesRouter = require('./routes/articles');
-var profilesRouter = require('./routes/profiles');
-var tagsRouter = require('./routes/tags');
-var userRouter = require('./routes/user');
-
-// Connecting to database
-console.log(process.env.MONGO_DB)
+//database connectivity
 mongoose.connect(
-  process.env.MONGO_DB,
-  { useNewUrlParser: true, useUnifiedTopology: true },
-  (error) => {
-    console.log('Connected to database: ', error ? false : true);
+  `mongodb+srv://${process.env.DBUSERNAME}:${process.env.DBPASSWD}@cluster0.v6x9g.mongodb.net/?retryWrites=true&w=majority`,
+  (err) => {
+    console.log(err ? err : "Connection is made sucessfully");
   }
 );
 
-// Instantiating the application
-var app = express();
+// Requiring all the routes
+const indexRouter = require("./routes/index");
+const usersRouter = require("./routes/users");
+const articleRouter = require("./routes/articles");
+const tagsRouter = require("./routes/tags");
+let userRouter = require("./routes/user");
+const profileRouter = require("./routes/profiles");
 
-// Using the middlewares
-app.use(logger('dev'));
+//Instantiating the application
+const app = express();
+
+//all the middlewares
+app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
-// Using the routes
-app.use('/api/v1', indexRouter);
-app.use('/api/v1/users', usersRouter);
-app.use('/api/v1/articles', articlesRouter);
-app.use('/api/v1/profiles', profilesRouter);
-app.use('/api/v1/tags', tagsRouter);
-app.use('/api/v1/user', userRouter);
+//using all the routes
+app.use("/", indexRouter);
+app.use("/api/v1/articles", articleRouter);
+app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/user", userRouter);
+app.use("/api/v1/tags", tagsRouter);
+app.use("/api/v1/profiles", profileRouter);
 
 // Catch 404 and forward them to error handler
 app.use(function (req, res, next) {
@@ -53,12 +50,12 @@ app.use(function (req, res, next) {
 app.use(function (err, req, res, next) {
   // Set locals, only providing error in development
   res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+  res.locals.error = req.app.get("env") === "development" ? err : {};
 
   // Sending the error
   res.status(err.status || 500);
   res.json({ message: err.message, status: err.status });
 });
 
-// Exporting the application
+//Exporting  the application
 module.exports = app;

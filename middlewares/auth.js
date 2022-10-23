@@ -1,31 +1,36 @@
-var jwt = require('jsonwebtoken');
+const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
+const User = require("../models/users");
 
+//to verify if the user is logged in only if the token is mathced
+// so we will get some information about  the user that we have entered
+// in the payload when we have send the token to user for  the first time
 module.exports = {
-  verifyToken: async (req, res, next) => {
+  isVerified: async function (req, res, next) {
     let token = req.headers.authorization;
     try {
-      if (token) {
-        let payload = await jwt.verify(token, process.env.SECRET);
-        req.user = payload;
-        return next();
-      } else {
-        return res.status(401).json({ error: { body: ['Token Required'] } });
-      }
-    } catch (error) {
-      next(error);
+      let payload= jwt.verify(token, process.env.SECRET);
+      req.user = payload;
+      return next();
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ error: "token is not valid you need to login again" });
     }
   },
-
-  authorizeOptional: async (req, res, next) => {
+  optionalAuthorization: async (req, res, next) => {
     let token = req.headers.authorization;
     try {
-      if (token) {
-        let payload = await jwt.verify(token, process.env.SECRET);
-        req.user = payload;
-        return next();
-      } else {
+      if (!token) {
+        req.user = {
+          id: null,
+          email: null,
+        };
         return next();
       }
+      let payload = jwt.verify(token, process.env.SECRET);
+      req.user = payload;
+      return next();
     } catch (error) {
       next(error);
     }

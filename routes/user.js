@@ -1,31 +1,36 @@
-var express = require('express');
-var router = express.Router();
-var User = require('../models/User');
-var auth = require('../middlewares/auth');
-var bcrypt = require('bcrypt');
+const express = require("express");
+const router = express.Router();
+const User = require("../models/users");
+const auth = require("../middlewares/auth");
+const formatData = require("../helpers/formatdata");
+let { userProfile, userJSON, articleformat } = formatData;
 
-// Protecting The Routes
-router.use(auth.verifyToken);
+//only verified users have access to these routes
+router.use(auth.isVerified);
 
-//Get Current User (Authenticated)
-router.get('/', async (req, res, next) => {
-  let id = req.user.userId;
+// curren logged in user information(authenticated)
+router.get("/", async (req, res, next) => {
   try {
-    let user = await User.findById(id);
-    res.status(200).json({ user: user.displayUser(id) });
+    let user = await User.findOne({ email: req.user.email });
+    res.status(202).json({ user: userJSON(user, req.headers.authorization) });
+  } catch (e) {
+    res.status(500).json({ error: " user in not found " });
+  }
+});
+
+
+// update current logged in user information(authenticated)
+router.put("/", async (req, res, next) => {
+  try {
+    let user = await User.findOneAndUpdate(
+      { email: req.user.email },
+      req.body,
+      { new: true }
+    );
+    res.status(202).json({ user: userJSON(user, req.headers.authorization) });
   } catch (error) {
     next(error);
   }
 });
 
-//Update User (Authenticated)
-router.put('/', async (req, res, next) => {
-  let id = req.user.userId;
-  try {
-    user = await User.findByIdAndUpdate(id, req.body.user, { new: true });
-    return res.status(201).json({ user: user.displayUser(id) });
-  } catch (error) {
-    next(error);
-  }
-});
 module.exports = router;

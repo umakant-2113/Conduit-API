@@ -1,8 +1,8 @@
+
+This  API is a social blogging  site API (i.e. a Medium.com clone) called "Conduit Api". View or use this API :  http://conduitblogapp.herokuapp.com/
+See all the Endpoints below
+
 # Endpoints
-
-## Live Link For API
-
-https://conduit-api-v1.herokuapp.com
 
 ### Authentication Header:
 
@@ -18,35 +18,30 @@ You can read the authentication header from the headers of the request
 Example request body:
 ```JSON
 {
-  "user":{
     "email": "jake@jake.jake",
     "password": "jakejake"
-  }
 }
 ```
 
-No authentication required, returns a User.
+No authentication required, returns a [User]
 
 Required fields: `email`, `password`
 
 
 ### Registration:
 
-`POST /api/v1/users/signup`
+`POST /api/users`
 
 Example request body:
 ```JSON
 {
-  "user":{
-      "name": "Jacob",
-    "username": "jacob",
+    "username": "Jacob",
     "email": "jake@jake.jake",
     "password": "jakejake"
-  }
 }
 ```
 
-No authentication required, returns a User.
+No authentication required, returns a [User]
 
 Required fields: `email`, `username`, `password`
 
@@ -56,7 +51,7 @@ Required fields: `email`, `username`, `password`
 
 `GET /api/v1/user`
 
-Authentication required, returns a User.
+Authentication required, returns a [User] that's the current user
 
 
 
@@ -67,15 +62,13 @@ Authentication required, returns a User.
 Example request body:
 ```JSON
 {
-  "user":{
     "email": "jake@jake.jake",
     "bio": "I like to skateboard",
     "image": "https://i.stack.imgur.com/xHWG8.jpg"
-  }
 }
 ```
 
-Authentication required, returns the User.
+Authentication required, returns the [User]
 
 
 Accepted fields: `email`, `username`, `password`, `image`, `bio`
@@ -86,15 +79,15 @@ Accepted fields: `email`, `username`, `password`, `image`, `bio`
 
 `GET /api/v1/profiles/:username`
 
-Authentication optional, returns a Profile.
+Authentication optional, returns a [Profile]
 
 
 
 ### Follow user
 
-`POST /api/profiles/:username/follow`
+`POST /api/v1/profiles/:username/follow`
 
-Authentication required, returns a Profile.
+Authentication required, returns a [Profile]
 
 No additional parameters required
 
@@ -104,7 +97,7 @@ No additional parameters required
 
 `DELETE /api/v1/profiles/:username/follow`
 
-Authentication required, returns a Profile.
+Authentication required, returns a [Profile]
 
 No additional parameters required
 
@@ -138,7 +131,7 @@ Offset/skip number of articles (default is 0):
 
 `?offset=0`
 
-Authentication optional, will return multiple articles.
+Authentication optional, will return [multiple articles], ordered by most recent first
 
 
 
@@ -146,17 +139,15 @@ Authentication optional, will return multiple articles.
 
 `GET /api/v1/articles/feed`
 
-Can also take `limit` and `offset` query parameters like List Articles.
-
-Authentication required, will return multiple articles. Created by followed users, ordered by most recent first.
+Can also take `limit` and `offset` query parameters like [List Articles]
+Authentication required, will return [multiple articles] created by followed users, ordered by most recent first.
 
 
 ### Get Article
 
 `GET /api/v1/articles/:slug`
 
-No authentication required, will return Single Article.
-
+No authentication required, will return [single article]
 ### Create Article
 
 `POST /api/v1/articles`
@@ -165,16 +156,14 @@ Example request body:
 
 ```JSON
 {
-  "article": {
     "title": "How to train your dragon",
     "description": "Ever wonder how?",
     "body": "You have to believe",
-    "tagList": ["reactjs", "angularjs", "dragons"]
-  }
+    "taglist": "reactjs,AngularJs,Dragon"
 }
 ```
 
-Authentication required, will return an Article.
+Authentication required, will return an [Article]
 
 Required fields: `title`, `description`, `body`
 
@@ -190,13 +179,11 @@ Example request body:
 
 ```JSON
 {
-  "article": {
     "title": "Did you train your dragon?"
-  }
 }
 ```
 
-Authentication required, returns the Updated Article.
+Authentication required, returns the updated [Article]
 
 Optional fields: `title`, `description`, `body`
 
@@ -219,13 +206,11 @@ Example request body:
 
 ```JSON
 {
-  "comment": {
     "body": "His name was my name too."
-  }
 }
 ```
 
-Authentication required, returns the created Comment.
+Authentication required, returns the created [Comment]
 
 Required field: `body`
 
@@ -235,7 +220,7 @@ Required field: `body`
 
 `GET /api/v1/articles/:slug/comments`
 
-Authentication optional, returns Multiple Comments.
+Authentication optional, returns [multiple comments]
 
 
 
@@ -251,7 +236,7 @@ Authentication required
 
 `POST /api/v1/articles/:slug/favorite`
 
-Authentication required, returns the Article.
+Authentication required, returns the [Article]
 
 No additional parameters required
 
@@ -261,7 +246,7 @@ No additional parameters required
 
 `DELETE /api/v1/articles/:slug/favorite`
 
-Authentication required, returns the Article.
+Authentication required, returns the [Article]
 
 No additional parameters required
 
@@ -271,4 +256,4 @@ No additional parameters required
 
 `GET /api/v1/tags`
 
-No authentication required, returns a List of Tags.
+No authentication required, returns a [List of Tags]
