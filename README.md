@@ -1,6 +1,11 @@
 
-This  API is a social blogging  site API (i.e. a Medium.com clone) called "Conduit Api". View or use this API : 
-See all the Endpoints below
+first of all if we want to use this api then follow these step
+1 copy our code from github 
+2 clone this repository on your system
+3  install all npm packeg which is mentions in our json file
+4 start our project using nodemon start
+5  using port   localhost:3000
+
 
 # Endpoints
 
